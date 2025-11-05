@@ -25,11 +25,11 @@ const destinationIcon = L.divIcon({
   iconAnchor: [15, 30],
 });
 
-// Initialize map centered on a default location
+//region map init
 function initMap() {
   // Create map with more options
   map = L.map("map", {
-    center: [51.505, -0.09],
+    center: getUserLocation() || [51.505, -0.09],
     zoom: 13,
     zoomControl: true,
     attributionControl: true,
@@ -45,6 +45,45 @@ function initMap() {
 
   // Get user's current location
   getUserLocation();
+
+  // Add click event to set destination
+  map.on("click", onMapClick);
+}
+
+//region set dest pin
+function onMapClick(e) {
+  const latlng = e.latlng;
+
+  // Update destination input field
+  document.getElementById("destination").value = `${latlng.lat.toFixed(
+    6
+  )}, ${latlng.lng.toFixed(6)}`;
+
+  // Add or update destination marker
+  if (destinationMarker) {
+    destinationMarker.setLatLng(latlng);
+  } else {
+    destinationMarker = L.marker(latlng, {
+      icon: destinationIcon,
+      title: "Destination",
+      draggable: true, // Make it draggable for fine-tuning
+    })
+      .addTo(map)
+      .bindPopup("Destination<br><small>Drag to adjust position</small>")
+      .openPopup();
+
+    // Update coordinates when dragged
+    destinationMarker.on("dragend", function (event) {
+      const marker = event.target;
+      const position = marker.getLatLng();
+      document.getElementById("destination").value = `${position.lat.toFixed(
+        6
+      )}, ${position.lng.toFixed(6)}`;
+    });
+  }
+
+  // Show popup
+  destinationMarker.openPopup();
 }
 
 // Separate function for getting user location (more reusable)
@@ -274,10 +313,12 @@ async function startNavigation() {
     // Add/update destination marker with custom icon
     if (destinationMarker) {
       destinationMarker.setLatLng(destCoords);
+      destinationMarker.dragging.disable(); // Disable dragging during navigation
     } else {
       destinationMarker = L.marker(destCoords, {
         icon: destinationIcon,
         title: "Destination",
+        draggable: false,
       })
         .addTo(map)
         .bindPopup("Destination");
@@ -339,6 +380,11 @@ function stopNavigation() {
   document.getElementById("distanceLeft").textContent = "--";
   document.getElementById("timeLeft").textContent = "--";
   document.getElementById("currentSpeed").textContent = "-- km/h";
+
+  // Re-enable dragging on destination marker if it exists
+  if (destinationMarker && destinationMarker.dragging) {
+    destinationMarker.dragging.enable();
+  }
 }
 
 // Use current location button - reuse getUserLocation function
