@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-time Navigation with Leaflet</title>
+
+    <!-- Leaflet CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+    <!-- Leaflet Routing Machine CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"
+    />
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .header {
+        background: #2c3e50;
+        color: white;
+        padding: 15px 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .header h1 {
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 200px;
+      }
+
+      .input-group label {
+        font-size: 12px;
+        margin-bottom: 5px;
+        opacity: 0.9;
+      }
+
+      .input-group input {
+        padding: 10px;
+        border: none;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        transition: all 0.3s;
+        margin-top: auto;
+      }
+
+      .btn-primary {
+        background: #3498db;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #2980b9;
+      }
+
+      .btn-success {
+        background: #27ae60;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #229954;
+      }
+
+      .btn-danger {
+        background: #e74c3c;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #c0392b;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      #map {
+        flex: 1;
+        width: 100%;
+      }
+
+      .info-panel {
+        background: white;
+        padding: 15px;
+        border-top: 2px solid #ecf0f1;
+        display: flex;
+        justify-content: space-around;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+
+      .info-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .info-label {
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-bottom: 5px;
+      }
+
+      .info-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #2c3e50;
+      }
+
+      /* .status {
+        position: absolute;
+        top: 80px;
+        right: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        min-width: 200px;
+      }
+
+      .status-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #2c3e50;
+      }
+
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        font-size: 14px;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+
+      .status-dot.active {
+        background: #27ae60;
+        animation: pulse 2s infinite;
+      }
+
+      .status-dot.inactive {
+        background: #95a5a6;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      } */
+
+      .error-message {
+        background: #e74c3c;
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>🗺️ Real-time Navigation</h1>
+      <div class="controls">
+        <div class="input-group">
+          <label for="start">Starting Location</label>
+          <input
+            type="text"
+            id="start"
+            placeholder="Enter starting address or use current location"
+          />
+        </div>
+        <div class="input-group">
+          <label for="destination">Destination</label>
+          <input
+            type="text"
+            id="destination"
+            placeholder="Enter destination address"
+          />
+        </div>
+        <button class="btn btn-primary" id="useCurrentLocation">
+          Use My Location
+        </button>
+        <button class="btn btn-success" id="navigate">Navigate</button>
+        <button
+          class="btn btn-danger"
+          id="stopNavigation"
+          style="display: none"
+        >
+          Stop Navigation
+        </button>
+      </div>
+      <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <div id="map"></div>
+
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Leaflet Routing Machine -->
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <!-- Custom JS -->
+    <script src="app.js"></script>
+  </body>
+</html>
