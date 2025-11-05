@@ -10,51 +10,102 @@ let routeCoordinates = [];
 let lastPosition = null;
 let lastTime = null;
 
+// Custom icon definitions (reusable)
+const currentLocationIcon = L.divIcon({
+  className: "current-location-marker",
+  html: '<div style="background: #3498db; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+
+const destinationIcon = L.divIcon({
+  className: "destination-marker",
+  html: '<div style="background: #e74c3c; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>',
+  iconSize: [30, 30],
+  iconAnchor: [15, 30],
+});
+
 // Initialize map centered on a default location
 function initMap() {
-  map = L.map("map").setView([51.505, -0.09], 13);
+  // Create map with more options
+  map = L.map("map", {
+    center: [51.505, -0.09],
+    zoom: 13,
+    zoomControl: true,
+    attributionControl: true,
+  });
 
-  // Add OpenStreetMap tile layer
+  // Add OpenStreetMap tile layer with error handling
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "© OpenStreetMap contributors",
     maxZoom: 19,
+    minZoom: 3,
+    subdomains: ["a", "b", "c"],
   }).addTo(map);
 
-  //region get usr curr location
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        map.setView([lat, lng], 15);
-        currentPosition = { lat, lng };
+  // Get user's current location
+  getUserLocation();
+}
 
-        // Add marker for current location
-        if (currentLocationMarker) {
-          currentLocationMarker.setLatLng([lat, lng]);
-        } else {
-          currentLocationMarker = L.marker([lat, lng], {
-            icon: L.divIcon({
-              className: "current-location-marker",
-              html: '<div style="background: #3498db; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>',
-              iconSize: [20, 20],
-            }),
-          })
-            .addTo(map)
-            .bindPopup("Your Current Location");
-        }
+// Separate function for getting user location (more reusable)
+function getUserLocation() {
+  if (!navigator.geolocation) {
+    showError("Geolocation is not supported by your browser");
+    return;
+  }
 
-        document.getElementById("start").value = `${lat.toFixed(
-          6
-        )}, ${lng.toFixed(6)}`;
-      },
-      (error) => {
-        console.error("Error getting location:", error);
-        showError(
-          "Unable to get your location. Please enter manually or check permissions."
-        );
-      }
-    );
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const latlng = L.latLng(
+        position.coords.latitude,
+        position.coords.longitude
+      );
+      currentPosition = latlng;
+
+      // Fly to location with animation
+      map.flyTo(latlng, 15, {
+        duration: 1.5,
+      });
+
+      // Create or update marker
+      updateCurrentLocationMarker(latlng);
+
+      // Update input field
+      document.getElementById("start").value = `${latlng.lat.toFixed(
+        6
+      )}, ${latlng.lng.toFixed(6)}`;
+    },
+    (error) => {
+      console.error("Error getting location:", error);
+      const errorMessages = {
+        1: "Location permission denied. Please enable location access.",
+        2: "Location information unavailable.",
+        3: "Location request timed out.",
+      };
+      showError(
+        errorMessages[error.code] ||
+          "Unable to get your location. Please enter manually."
+      );
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000,
+    }
+  );
+}
+
+// Helper function to update current location marker
+function updateCurrentLocationMarker(latlng) {
+  if (currentLocationMarker) {
+    currentLocationMarker.setLatLng(latlng);
+  } else {
+    currentLocationMarker = L.marker(latlng, {
+      icon: currentLocationIcon,
+      title: "Your Location",
+    })
+      .addTo(map)
+      .bindPopup("Your Current Location");
   }
 }
 
@@ -102,19 +153,11 @@ async function geocodeAddress(address) {
   }
 }
 
-// Calculate distance between two points (Haversine formula)
+// Calculate distance using Leaflet's built-in method (more optimized)
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of Earth in kilometers
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in kilometers
+  const point1 = L.latLng(lat1, lon1);
+  const point2 = L.latLng(lat2, lon2);
+  return point1.distanceTo(point2) / 1000; // Convert meters to kilometers
 }
 
 // Calculate speed
@@ -126,17 +169,17 @@ function calculateSpeed(lat1, lon1, lat2, lon2, timeDiff) {
 
 // Update navigation status
 function updateNavigationStatus(position) {
-  const lat = position.coords.latitude;
-  const lng = position.coords.longitude;
+  const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
   const currentTime = Date.now();
 
-  // Update current location marker
-  if (currentLocationMarker) {
-    currentLocationMarker.setLatLng([lat, lng]);
-  }
+  // Update current location marker using Leaflet method
+  updateCurrentLocationMarker(latlng);
 
-  // Center map on current location
-  map.setView([lat, lng], map.getZoom());
+  // Smooth pan to current location (better than setView)
+  map.panTo(latlng, {
+    animate: true,
+    duration: 0.5,
+  });
 
   // Calculate speed
   if (lastPosition && lastTime) {
@@ -144,8 +187,8 @@ function updateNavigationStatus(position) {
     const speed = calculateSpeed(
       lastPosition.lat,
       lastPosition.lng,
-      lat,
-      lng,
+      latlng.lat,
+      latlng.lng,
       timeDiff
     );
     document.getElementById("currentSpeed").textContent = `${speed.toFixed(
@@ -153,18 +196,13 @@ function updateNavigationStatus(position) {
     )} km/h`;
   }
 
-  lastPosition = { lat, lng };
+  lastPosition = latlng;
   lastTime = currentTime;
 
   // If we have a route, calculate remaining distance
   if (routeCoordinates.length > 0) {
-    const destination = routeCoordinates[routeCoordinates.length - 1];
-    const distanceToDestination = calculateDistance(
-      lat,
-      lng,
-      destination.lat,
-      destination.lng
-    );
+    const destination = L.latLng(routeCoordinates[routeCoordinates.length - 1]);
+    const distanceToDestination = latlng.distanceTo(destination) / 1000; // Leaflet's built-in method
 
     document.getElementById("distanceLeft").textContent =
       distanceToDestination < 1
@@ -204,44 +242,46 @@ async function startNavigation() {
       map.removeControl(routingControl);
     }
 
-    // Create routing control
+    // Create routing control with optimized options
     routingControl = L.Routing.control({
-      waypoints: [
-        L.latLng(startCoords.lat, startCoords.lng),
-        L.latLng(destCoords.lat, destCoords.lng),
-      ],
+      waypoints: [L.latLng(startCoords), L.latLng(destCoords)],
       routeWhileDragging: false,
       showAlternatives: false,
       addWaypoints: false,
       fitSelectedRoutes: true,
+      createMarker: function () {
+        return null; // Don't create default markers, we'll use custom ones
+      },
       lineOptions: {
         styles: [{ color: "#3498db", weight: 6, opacity: 0.7 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 0,
       },
+      router: L.Routing.osrmv1({
+        serviceUrl: "https://router.project-osrm.org/route/v1",
+      }),
     }).addTo(map);
 
-    // Store route coordinates
-    routingControl.on("routesfound", function (e) {
-      const routes = e.routes;
-      const route = routes[0];
-      routeCoordinates = route.coordinates.map((coord) => ({
-        lat: coord.lat,
-        lng: coord.lng,
-      }));
+    // Store route coordinates using Leaflet event
+    routingControl.on("routesfound", (e) => {
+      routeCoordinates = e.routes[0].coordinates;
+
+      // Fit bounds to show entire route
+      const bounds = L.latLngBounds(routeCoordinates);
+      map.fitBounds(bounds, { padding: [50, 50] });
     });
 
-    // Add destination marker
+    // Add/update destination marker with custom icon
     if (destinationMarker) {
-      map.removeLayer(destinationMarker);
+      destinationMarker.setLatLng(destCoords);
+    } else {
+      destinationMarker = L.marker(destCoords, {
+        icon: destinationIcon,
+        title: "Destination",
+      })
+        .addTo(map)
+        .bindPopup("Destination");
     }
-    destinationMarker = L.marker([destCoords.lat, destCoords.lng], {
-      icon: L.divIcon({
-        className: "destination-marker",
-        html: '<div style="background: #e74c3c; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>',
-        iconSize: [30, 30],
-      }),
-    })
-      .addTo(map)
-      .bindPopup("Destination");
 
     // Start watching position
     if (navigator.geolocation) {
@@ -301,41 +341,10 @@ function stopNavigation() {
   document.getElementById("currentSpeed").textContent = "-- km/h";
 }
 
-// Use current location button
-document.getElementById("useCurrentLocation").addEventListener("click", () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        document.getElementById("start").value = `${lat.toFixed(
-          6
-        )}, ${lng.toFixed(6)}`;
-
-        map.setView([lat, lng], 15);
-
-        if (currentLocationMarker) {
-          currentLocationMarker.setLatLng([lat, lng]);
-        } else {
-          currentLocationMarker = L.marker([lat, lng], {
-            icon: L.divIcon({
-              className: "current-location-marker",
-              html: '<div style="background: #3498db; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>',
-              iconSize: [20, 20],
-            }),
-          })
-            .addTo(map)
-            .bindPopup("Your Current Location");
-        }
-      },
-      (error) => {
-        showError("Unable to get your location: " + error.message);
-      }
-    );
-  } else {
-    showError("Geolocation is not supported by your browser");
-  }
-});
+// Use current location button - reuse getUserLocation function
+document
+  .getElementById("useCurrentLocation")
+  .addEventListener("click", getUserLocation);
 
 // Navigate button
 document.getElementById("navigate").addEventListener("click", startNavigation);
