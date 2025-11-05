@@ -86,7 +86,7 @@ function onMapClick(e) {
   destinationMarker.openPopup();
 }
 
-// Separate function for getting user location (more reusable)
+//region get usr loc
 function getUserLocation() {
   if (!navigator.geolocation) {
     showError("Geolocation is not supported by your browser");
@@ -103,7 +103,7 @@ function getUserLocation() {
 
       // Fly to location with animation
       map.flyTo(latlng, 15, {
-        duration: 1.5,
+        duration: 3.5,
       });
 
       // Create or update marker
@@ -158,11 +158,12 @@ function showError(message) {
   }, 5000);
 }
 
-// Geocode address to coordinates
+//region geocoding
 async function geocodeAddress(address) {
   try {
     // Check if it's already coordinates
     const coordMatch = address.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+    console.log("Geocoding address:", address);
     if (coordMatch) {
       return {
         lat: parseFloat(coordMatch[1]),
@@ -170,22 +171,22 @@ async function geocodeAddress(address) {
       };
     }
 
-    // Use Nominatim for geocoding
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        address
-      )}&limit=1`
-    );
-    const data = await response.json();
+    // // Use Nominatim for geocoding
+    // const response = await fetch(
+    //   `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+    //     address
+    //   )}&limit=1` //rate limit to 1 result
+    // );
+    // const data = await response.json();
 
-    if (data.length > 0) {
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-      };
-    } else {
-      throw new Error("Address not found");
-    }
+    // if (data.length > 0) {
+    //   return {
+    //     lat: parseFloat(data[0].lat),
+    //     lng: parseFloat(data[0].lon),
+    //   };
+    // } else {
+    //   throw new Error("Address not found");
+    // }
   } catch (error) {
     console.error("Geocoding error:", error);
     throw error;
@@ -207,59 +208,44 @@ function calculateSpeed(lat1, lon1, lat2, lon2, timeDiff) {
 }
 
 // Update navigation status
-function updateNavigationStatus(position) {
-  const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
-  const currentTime = Date.now();
+// function updateNavigationStatus(position) {
+//   const latlng = L.latLng(position.coords.latitude, position.coords.longitude);
+//   const currentTime = Date.now();
 
-  // Update current location marker using Leaflet method
-  updateCurrentLocationMarker(latlng);
+//   // Update current location marker using Leaflet method
+//   updateCurrentLocationMarker(latlng);
 
-  // Smooth pan to current location (better than setView)
-  map.panTo(latlng, {
-    animate: true,
-    duration: 0.5,
-  });
+//   // Smooth pan to current location (better than setView)
+//   map.panTo(latlng, {
+//     animate: true,
+//     duration: 0.5,
+//   });
 
-  // Calculate speed
-  if (lastPosition && lastTime) {
-    const timeDiff = currentTime - lastTime;
-    const speed = calculateSpeed(
-      lastPosition.lat,
-      lastPosition.lng,
-      latlng.lat,
-      latlng.lng,
-      timeDiff
-    );
-    document.getElementById("currentSpeed").textContent = `${speed.toFixed(
-      1
-    )} km/h`;
-  }
+//   lastPosition = latlng;
+//   lastTime = currentTime;
 
-  lastPosition = latlng;
-  lastTime = currentTime;
+//   // If we have a route, calculate remaining distance
+//   if (routeCoordinates.length > 0) {
+//     const destination = L.latLng(routeCoordinates[routeCoordinates.length - 1]);
+//     const distanceToDestination = latlng.distanceTo(destination) / 1000; // Leaflet's built-in method
 
-  // If we have a route, calculate remaining distance
-  if (routeCoordinates.length > 0) {
-    const destination = L.latLng(routeCoordinates[routeCoordinates.length - 1]);
-    const distanceToDestination = latlng.distanceTo(destination) / 1000; // Leaflet's built-in method
+//     document.getElementById("distanceLeft").textContent =
+//       distanceToDestination < 1
+//         ? `${(distanceToDestination * 1000).toFixed(0)} m`
+//         : `${distanceToDestination.toFixed(2)} km`;
 
-    document.getElementById("distanceLeft").textContent =
-      distanceToDestination < 1
-        ? `${(distanceToDestination * 1000).toFixed(0)} m`
-        : `${distanceToDestination.toFixed(2)} km`;
+//     // Estimate time (assuming average speed of 40 km/h)
+//     const estimatedTime = (distanceToDestination / 40) * 60; // in minutes
+//     document.getElementById("timeLeft").textContent =
+//       estimatedTime < 1 ? `< 1 min` : `${Math.round(estimatedTime)} min`;
 
-    // Estimate time (assuming average speed of 40 km/h)
-    const estimatedTime = (distanceToDestination / 40) * 60; // in minutes
-    document.getElementById("timeLeft").textContent =
-      estimatedTime < 1 ? `< 1 min` : `${Math.round(estimatedTime)} min`;
-
-    // Check if we've arrived (within 50 meters)
-    if (distanceToDestination < 0.05) {
-      showError("You have arrived at your destination! 🎉");
-      stopNavigation();
-    }
-  }
-}
+//     // Check if we've arrived (within 50 meters)
+//     if (distanceToDestination < 0.05) {
+//       showError("You have arrived at your destination! 🎉");
+//       stopNavigation();
+//     }
+//   }
+// }
 
 // Start navigation
 async function startNavigation() {
@@ -343,10 +329,10 @@ async function startNavigation() {
 
       isNavigating = true;
       document.getElementById("navigate").style.display = "none";
-      document.getElementById("stopNavigation").style.display = "block";
-      document.getElementById("gpsStatus").classList.remove("inactive");
-      document.getElementById("gpsStatus").classList.add("active");
-      document.getElementById("gpsText").textContent = "Active";
+      // document.getElementById("stopNavigation").style.display = "block";
+      // document.getElementById("gpsStatus").classList.remove("inactive");
+      // document.getElementById("gpsStatus").classList.add("active");
+      // document.getElementById("gpsText").textContent = "Active";
     } else {
       showError("Geolocation is not supported by your browser");
     }
@@ -374,12 +360,12 @@ function stopNavigation() {
 
   document.getElementById("navigate").style.display = "block";
   document.getElementById("stopNavigation").style.display = "none";
-  document.getElementById("gpsStatus").classList.remove("active");
-  document.getElementById("gpsStatus").classList.add("inactive");
-  document.getElementById("gpsText").textContent = "Inactive";
-  document.getElementById("distanceLeft").textContent = "--";
-  document.getElementById("timeLeft").textContent = "--";
-  document.getElementById("currentSpeed").textContent = "-- km/h";
+  // document.getElementById("gpsStatus").classList.remove("active");
+  // document.getElementById("gpsStatus").classList.add("inactive");
+  // document.getElementById("gpsText").textContent = "Inactive";
+  // document.getElementById("distanceLeft").textContent = "--";
+  // document.getElementById("timeLeft").textContent = "--";
+  // document.getElementById("currentSpeed").textContent = "-- km/h";
 
   // Re-enable dragging on destination marker if it exists
   if (destinationMarker && destinationMarker.dragging) {
